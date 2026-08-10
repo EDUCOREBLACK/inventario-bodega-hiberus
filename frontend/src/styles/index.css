@@ -1,0 +1,74 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --color-hiberus-blue: #1A2B5C;
+    --color-hiberus-light: #0066FF;
+    --color-hiberus-gray: #F5F6FA;
+  }
+  
+  body {
+    @apply bg-[#F5F6FA] text-[#1A1A1A] font-sans;
+    margin: 0;
+    min-height: 100vh;
+  }
+  
+  .sidebar {
+    @apply w-64 bg-[#1A2B5C] text-white min-h-screen fixed left-0 top-0;
+    z-index: 40;
+  }
+  
+  .sidebar-link {
+    @apply flex items-center px-4 py-3 text-gray-300 hover:bg-[#0066FF] hover:text-white transition-colors rounded-lg mx-2;
+  }
+  
+  .sidebar-link.active {
+    @apply bg-[#0066FF] text-white;
+  }
+  
+  .main-content {
+    @apply ml-64 p-8;
+  }
+  
+  .card {
+    @apply bg-white rounded-xl shadow-sm p-6 hover:shadow-md transition-shadow;
+  }
+  
+  .btn-primary {
+    @apply bg-[#0066FF] text-white px-4 py-2 rounded-lg hover:bg-[#0052CC] transition-colors;
+  }
+  
+  .btn-secondary {
+    @apply border border-[#1A2B5C] text-[#1A2B5C] px-4 py-2 rounded-lg hover:bg-[#1A2B5C] hover:text-white transition-colors;
+  }
+  
+  .btn-danger {
+    @apply bg-[#EF4444] text-white px-4 py-2 rounded-lg hover:bg-[#DC2626] transition-colors;
+  }
+  
+  .input-field {
+    @apply w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0066FF] focus:border-transparent;
+  }
+  
+  .badge {
+    @apply px-2 py-1 text-xs font-medium rounded-full;
+  }
+  
+  .badge-success {
+    @apply bg-[#10B981] text-white;
+  }
+  
+  .badge-danger {
+    @apply bg-[#EF4444] text-white;
+  }
+  
+  .badge-warning {
+    @apply bg-[#F59E0B] text-white;
+  }
+  
+  .badge-info {
+    @apply bg-[#0066FF] text-white;
+  }
+}
