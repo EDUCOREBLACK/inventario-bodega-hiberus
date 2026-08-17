@@ -6,7 +6,6 @@ import {
     updateMaterial,
     deleteMaterial,
     getMaterialStock,
-    ajustarStock,
     actualizarUnidadStock,
     deleteUnidadStock,
     uploadImage,
@@ -29,9 +28,7 @@ router.post('/', verificarRol(['admin', 'gerente']), createMaterial);
 router.put('/:id', verificarRol(['admin', 'gerente']), updateMaterial);
 router.delete('/:id', verificarRol(['admin']), deleteMaterial);
 router.post('/:id/imagen', upload.single('imagen'), uploadImage);
-router.put('/:id/stock', verificarRol(['admin', 'gerente']), ajustarStock);
 router.put('/:id/stock/:stockId', verificarRol(['admin', 'gerente']), actualizarUnidadStock);
 router.put('/bulk', verificarRol(['admin', 'gerente']), bulkUpdateMaterials);
-
 
 export default router;

@@ -4,14 +4,15 @@ import { FolderKanban, Plus, Eye, Pencil, Trash2 } from 'lucide-react';
 import api from '../../services/api';
 import ProyectoDetalleModal from './ProyectoDetalleModal';
 import ProyectoFormModal from './ProyectoFormModal';
+import ProyectoBulkAsignarModal from './ProyectoBulkAsignarModal';
 
 const ProyectosList = () => {
   const [proyectos, setProyectos] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [selectedProyecto, setSelectedProyecto] = useState(null);
+  const [isFormOpen, setIsFormOpen] = useState(false);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [isBulkAssignOpen, setIsBulkAssignOpen] = useState(false);
-  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [selectedProyecto, setSelectedProyecto] = useState(null);
 
   const fetchProyectos = async () => {
     try {
@@ -112,12 +113,22 @@ const ProyectosList = () => {
                   {proyecto.total_asignaciones || 0}
                 </div>
                 <div className="flex items-center text-sm text-gray-600">
+                  <span className="font-medium mr-2">Costo total:</span>
+                  {new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(proyecto.costo_total || 0)}
+                </div>
+                <div className="flex items-center text-sm text-gray-600">
                   <span className="font-medium mr-2">Fechas:</span>
                   {proyecto.fecha_inicio} - {proyecto.fecha_fin}
                 </div>
               </div>
 
               <div className="mt-4 flex flex-wrap gap-2">
+                <button
+                  onClick={() => { setSelectedProyecto(proyecto); setIsBulkAssignOpen(true); }}
+                  className="btn-primary flex items-center bg-blue-600 text-white px-3 py-2 rounded-md hover:bg-blue-700 text-sm font-medium"
+                >
+                  <Plus className="w-4 h-4 mr-1" /> Asignar materiales
+                </button>
                 <button
                   onClick={() => { setSelectedProyecto(proyecto); setIsDetailOpen(true); }}
                   className="btn-secondary flex items-center"
@@ -144,13 +155,13 @@ const ProyectosList = () => {
 
       
       {isBulkAssignOpen && (
-        <ProyectoBulkAsignarModal
-          isOpen={isBulkAssignOpen}
-          onClose={() => setIsBulkAssignOpen(false)}
-          proyecto={selectedProyecto}
-          onSaved={fetchProyectos}
-        />
-      )}
+      <ProyectoBulkAsignarModal
+        isOpen={isBulkAssignOpen}
+        onClose={() => setIsBulkAssignOpen(false)}
+        proyecto={selectedProyecto}
+        onSaved={fetchProyectos}
+      />
+
       <ProyectoDetalleModal
         isOpen={isDetailOpen}
         onClose={() => setIsDetailOpen(false)}
