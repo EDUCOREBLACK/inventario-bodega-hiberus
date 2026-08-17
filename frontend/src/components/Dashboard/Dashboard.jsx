@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
 import { Package, TrendingUp, FolderKanban, ArrowLeftRight } from 'lucide-react';
-
-const API_URL = 'http://localhost:5001/api';
+import api from '../../services/api';
+import ReportesPanel from './ReportesPanel';
+import AlertasPanel from './AlertasPanel';
+import ReportesAvanzados from './ReportesAvanzados';
 
 const Dashboard = () => {
   const [resumen, setResumen] = useState({
@@ -17,7 +18,7 @@ const Dashboard = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const response = await axios.get(`${API_URL}/dashboard/resumen`);
+        const response = await api.get('/dashboard/resumen');
         setResumen(response.data);
       } catch (error) {
         console.error('Error al cargar datos:', error);
@@ -104,6 +105,10 @@ const Dashboard = () => {
           <span className="ml-2 text-sm text-gray-500">USD</span>
         </div>
       </div>
+
+      <ReportesPanel />
+      <AlertasPanel />
+      <ReportesAvanzados />
     </div>
   );
 };

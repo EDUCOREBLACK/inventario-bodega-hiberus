@@ -1,23 +1,25 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
-
-const API_URL = 'http://localhost:5001/api';
+import { Plus } from 'lucide-react';
+import api from '../../services/api';
+import MovimientoFormModal from './MovimientoFormModal';
 
 const MovimientosList = () => {
   const [movimientos, setMovimientos] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
+  const fetchMovimientos = async () => {
+    try {
+      const response = await api.get('/movimientos');
+      setMovimientos(response.data || []);
+    } catch (error) {
+      console.error('Error al cargar movimientos:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchMovimientos = async () => {
-      try {
-        const response = await axios.get(`${API_URL}/movimientos`);
-        setMovimientos(response.data || []);
-      } catch (error) {
-        console.error('Error al cargar movimientos:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
     fetchMovimientos();
   }, []);
 
@@ -31,9 +33,15 @@ const MovimientosList = () => {
 
   return (
     <div>
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Movimientos</h1>
-        <p className="text-gray-600">Historial de movimientos de inventario</p>
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Movimientos</h1>
+          <p className="text-gray-600">Historial de movimientos de inventario</p>
+        </div>
+        <button onClick={() => setIsModalOpen(true)} className="btn-primary flex items-center">
+          <Plus className="w-5 h-5 mr-2" />
+          Nuevo Movimiento
+        </button>
       </div>
 
       <div className="card">
@@ -62,22 +70,22 @@ const MovimientosList = () => {
                       {new Date(mov.fecha_movimiento).toLocaleDateString()}
                     </td>
                     <td className="py-3 px-4 text-sm text-gray-700">
-                      {mov.material_nombre || mov.material_sku}
+                      {mov.material_nombre}
                     </td>
                     <td className="py-3 px-4">
                       <span className={`badge ${
-                        mov.tipo_movimiento === 'entrada' ? 'badge-success' : 
-                        mov.tipo_movimiento === 'salida' ? 'badge-danger' : 
+                        mov.tipo_movimiento_nombre === 'Entrada' ? 'badge-success' : 
+                        mov.tipo_movimiento_nombre === 'Salida' ? 'badge-danger' : 
                         'badge-warning'
                       }`}>
-                        {mov.tipo_movimiento || mov.tipo_movimiento_nombre}
+                        {mov.tipo_movimiento_nombre || 'Movimiento'}
                       </span>
                     </td>
                     <td className="py-3 px-4 text-center font-medium">
                       {mov.cantidad || 0}
                     </td>
                     <td className="py-3 px-4 text-sm text-gray-600">
-                      {mov.responsable || 'Sistema'}
+                      {mov.responsable_nombre || mov.proyecto_nombre || 'Sistema'}
                     </td>
                   </tr>
                 ))
@@ -86,6 +94,12 @@ const MovimientosList = () => {
           </table>
         </div>
       </div>
+
+      <MovimientoFormModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onSaved={fetchMovimientos}
+      />
     </div>
   );
 };

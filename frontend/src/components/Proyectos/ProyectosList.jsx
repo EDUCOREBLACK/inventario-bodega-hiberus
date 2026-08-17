@@ -1,26 +1,56 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
-import { FolderKanban, Plus } from 'lucide-react';
-
-const API_URL = 'http://localhost:5001/api';
+import { FolderKanban, Plus, Eye, Pencil, Trash2 } from 'lucide-react';
+import api from '../../services/api';
+import ProyectoDetalleModal from './ProyectoDetalleModal';
+import ProyectoFormModal from './ProyectoFormModal';
 
 const ProyectosList = () => {
   const [proyectos, setProyectos] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [selectedProyecto, setSelectedProyecto] = useState(null);
+  const [isDetailOpen, setIsDetailOpen] = useState(false);
+  const [isFormOpen, setIsFormOpen] = useState(false);
+
+  const fetchProyectos = async () => {
+    try {
+      const response = await api.get('/proyectos');
+      setProyectos(response.data || []);
+    } catch (error) {
+      console.error('Error al cargar proyectos:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchProyectos = async () => {
-      try {
-        const response = await axios.get(`${API_URL}/proyectos`);
-        setProyectos(response.data || []);
-      } catch (error) {
-        console.error('Error al cargar proyectos:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
     fetchProyectos();
   }, []);
+
+  const handleCreate = () => {
+    setSelectedProyecto(null);
+    setIsFormOpen(true);
+  };
+
+  const handleEdit = (proyecto) => {
+    setSelectedProyecto(proyecto);
+    setIsFormOpen(true);
+  };
+
+  const handleDelete = async (proyecto) => {
+    if (!window.confirm(`¿Eliminar el proyecto "${proyecto.nombre}"? Esta acción no se puede deshacer.`)) return;
+
+    try {
+      await api.delete(`/proyectos/${proyecto.id}`);
+      if (selectedProyecto?.id === proyecto.id) {
+        setSelectedProyecto(null);
+        setIsDetailOpen(false);
+      }
+      await fetchProyectos();
+    } catch (error) {
+      console.error(error);
+      alert(error?.response?.data?.error || 'No se pudo eliminar el proyecto');
+    }
+  };
 
   if (loading) {
     return (
@@ -37,7 +67,7 @@ const ProyectosList = () => {
           <h1 className="text-2xl font-bold text-gray-900">Proyectos</h1>
           <p className="text-gray-600">Gestión de proyectos</p>
         </div>
-        <button className="btn-primary flex items-center">
+        <button onClick={handleCreate} className="btn-primary flex items-center">
           <Plus className="w-5 h-5 mr-2" />
           Nuevo Proyecto
         </button>
@@ -84,10 +114,44 @@ const ProyectosList = () => {
                   {proyecto.fecha_inicio} - {proyecto.fecha_fin}
                 </div>
               </div>
+
+              <div className="mt-4 flex flex-wrap gap-2">
+                <button
+                  onClick={() => { setSelectedProyecto(proyecto); setIsDetailOpen(true); }}
+                  className="btn-secondary flex items-center"
+                >
+                  <Eye className="w-4 h-4 mr-2" /> Ver materiales
+                </button>
+                <button
+                  onClick={() => handleEdit(proyecto)}
+                  className="btn-secondary flex items-center"
+                >
+                  <Pencil className="w-4 h-4 mr-2" /> Editar
+                </button>
+                <button
+                  onClick={() => handleDelete(proyecto)}
+                  className="inline-flex items-center rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-100"
+                >
+                  <Trash2 className="w-4 h-4 mr-2" /> Eliminar
+                </button>
+              </div>
             </div>
           ))
         )}
       </div>
+
+      <ProyectoDetalleModal
+        isOpen={isDetailOpen}
+        onClose={() => setIsDetailOpen(false)}
+        proyecto={selectedProyecto}
+      />
+
+      <ProyectoFormModal
+        isOpen={isFormOpen}
+        onClose={() => setIsFormOpen(false)}
+        proyecto={selectedProyecto}
+        onSaved={fetchProyectos}
+      />
     </div>
   );
 };

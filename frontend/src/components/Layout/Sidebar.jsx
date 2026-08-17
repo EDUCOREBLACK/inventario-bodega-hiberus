@@ -5,15 +5,23 @@ import {
   Package, 
   ArrowLeftRight, 
   FolderKanban,
-  Settings 
+  Users,
+  Building2,
+  Store,
+  Users2,
+  Tags
 } from 'lucide-react';
 
 const Sidebar = () => {
   const menuItems = [
     { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
     { to: '/materiales', icon: Package, label: 'Materiales' },
+    { to: '/catalogos', icon: Tags, label: 'Catálogos' },
     { to: '/movimientos', icon: ArrowLeftRight, label: 'Movimientos' },
     { to: '/proyectos', icon: FolderKanban, label: 'Proyectos' },
+    { to: '/clientes', icon: Users, label: 'Clientes' },
+    { to: '/sucursales', icon: Building2, label: 'Sucursales' },
+    { to: '/usuarios', icon: Users2, label: 'Usuarios' },
   ];
 
   return (
@@ -40,12 +48,6 @@ const Sidebar = () => {
         ))}
       </nav>
       
-      <div className="absolute bottom-0 w-64 p-4 border-t border-blue-800">
-        <div className="flex items-center text-gray-300">
-          <Settings className="w-5 h-5 mr-3" />
-          <span className="text-sm">Configuración</span>
-        </div>
-      </div>
     </aside>
   );
 };

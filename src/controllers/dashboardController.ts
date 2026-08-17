@@ -5,10 +5,10 @@ import db from '../database/database';
 export const getDashboardResumen = (req: Request, res: Response) => {
     const queries = {
         totalProductos: 'SELECT COUNT(*) as total FROM productos',
-        totalStock: 'SELECT SUM(cantidad) as total FROM stock',
+        totalStock: 'SELECT COALESCE(SUM(cantidad), 0) as total FROM stock',
         totalProyectos: 'SELECT COUNT(*) as total FROM proyectos WHERE estado = "activo"',
         totalMovimientos: 'SELECT COUNT(*) as total FROM movimientos',
-        valorTotal: 'SELECT SUM(p.precio_compra * s.cantidad) as total FROM stock s JOIN productos p ON s.producto_id = p.id'
+        valorTotal: 'SELECT COALESCE(SUM(p.precio_unitario * s.cantidad), 0) as total FROM stock s JOIN productos p ON s.producto_id = p.id'
     };
 
     const results: any = {};
@@ -38,7 +38,6 @@ export const getStockBajo = (req: Request, res: Response) => {
     db.all(`
         SELECT 
             p.id,
-            p.sku,
             p.nombre,
             p.stock_minimo,
             tm.nombre as tipo,
@@ -66,13 +65,12 @@ export const getCostosProyectos = (req: Request, res: Response) => {
         SELECT 
             p.id,
             p.nombre,
-            p.tipo,
             p.estado,
             COUNT(ap.id) as total_materiales,
             COALESCE(SUM(ap.cantidad_asignada), 0) as total_asignado,
             COALESCE(SUM(ap.cantidad_utilizada), 0) as total_utilizado,
-            COALESCE(SUM(ap.cantidad_asignada * pr.precio_compra), 0) as costo_estimado,
-            COALESCE(SUM(ap.cantidad_utilizada * pr.precio_compra), 0) as costo_real
+            COALESCE(SUM(ap.cantidad_asignada * pr.precio_unitario), 0) as costo_estimado,
+            COALESCE(SUM(ap.cantidad_utilizada * pr.precio_unitario), 0) as costo_real
         FROM proyectos p
         LEFT JOIN asignaciones_proyecto ap ON p.id = ap.proyecto_id
         LEFT JOIN productos pr ON ap.producto_id = pr.id
@@ -95,7 +93,6 @@ export const getMovimientosRecientes = (req: Request, res: Response) => {
         SELECT 
             m.*,
             tm.nombre as tipo_movimiento,
-            p.sku,
             p.nombre as material_nombre,
             md.cantidad
         FROM movimientos m

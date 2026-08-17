@@ -1,23 +1,64 @@
 import { Request, Response } from 'express';
 import db from '../database/database';
 
+interface MulterRequest extends Request {
+    file?: Express.Multer.File;
+}
+
+const parseSerialList = (raw: any): string[] => {
+    if (Array.isArray(raw)) {
+        return raw.map((item) => String(item || '').trim()).filter(Boolean);
+    }
+    if (typeof raw === 'string') {
+        return raw
+            .split(/\r?\n|,/) 
+            .map((item) => item.trim())
+            .filter(Boolean);
+    }
+    return [];
+};
+
+// ============================================
+// CRUD BÁSICO DE MATERIALES
+// ============================================
+
 // Obtener todos los materiales (productos)
 export const getMateriales = (req: Request, res: Response) => {
-    db.all(`
+    const { search, tipo, marca, stock_min, stock_max } = req.query;
+    
+    let query = `
         SELECT 
             p.*,
             tm.nombre as tipo_nombre,
             m.nombre as marca_nombre,
-            u.nombre as ubicacion_nombre,
-            SUM(s.cantidad) as stock_total
+            pr.nombre as proveedor_nombre,
+            COALESCE((SELECT SUM(s.cantidad) FROM stock s WHERE s.producto_id = p.id AND s.activo = 1 AND s.cantidad > 0 AND (s.estado = 'disponible' OR (s.estado = 'en_mantenimiento' AND NOT EXISTS (SELECT 1 FROM asignaciones_proyecto ap WHERE ap.stock_id = s.id AND ap.estado IN ('pendiente', 'en_uso'))))), 0) as stock_total,
+            COALESCE((SELECT AVG(s.metraje) FROM stock s WHERE s.producto_id = p.id AND s.activo = 1 AND s.cantidad > 0 AND (s.estado = 'disponible' OR (s.estado = 'en_mantenimiento' AND NOT EXISTS (SELECT 1 FROM asignaciones_proyecto ap WHERE ap.stock_id = s.id AND ap.estado IN ('pendiente', 'en_uso'))))), p.metraje, 0) as metraje_unitario,
+            COALESCE((SELECT s.ubicacion_id FROM stock s WHERE s.producto_id = p.id AND s.activo = 1 AND s.cantidad > 0 AND (s.estado = 'disponible' OR (s.estado = 'en_mantenimiento' AND NOT EXISTS (SELECT 1 FROM asignaciones_proyecto ap WHERE ap.stock_id = s.id AND ap.estado IN ('pendiente', 'en_uso')))) ORDER BY s.id LIMIT 1), NULL) as ubicacion_id
         FROM productos p
         LEFT JOIN tipos_material tm ON p.tipo_material_id = tm.id
         LEFT JOIN marcas m ON p.marca_id = m.id
-        LEFT JOIN stock s ON p.id = s.producto_id
-        LEFT JOIN ubicaciones u ON s.ubicacion_id = u.id
-        GROUP BY p.id
-        ORDER BY p.created_at DESC
-    `, (err, rows) => {
+        LEFT JOIN proveedores pr ON p.proveedor_id = pr.id
+        WHERE 1=1
+    `;
+    const params: any[] = [];
+
+    if (search) {
+        query += ` AND (p.nombre LIKE ? OR p.descripcion LIKE ?)`;
+        params.push(`%${search}%`, `%${search}%`);
+    }
+    if (tipo) {
+        query += ` AND tm.nombre = ?`;
+        params.push(tipo);
+    }
+    if (marca) {
+        query += ` AND m.nombre = ?`;
+        params.push(marca);
+    }
+
+    query += ` ORDER BY p.created_at DESC`;
+
+    db.all(query, params, (err, rows) => {
         if (err) {
             res.status(500).json({ error: err.message });
             return;
@@ -34,15 +75,15 @@ export const getMaterialById = (req: Request, res: Response) => {
             p.*,
             tm.nombre as tipo_nombre,
             m.nombre as marca_nombre,
-            u.nombre as ubicacion_nombre,
-            SUM(s.cantidad) as stock_total
+            pr.nombre as proveedor_nombre,
+            COALESCE((SELECT SUM(s.cantidad) FROM stock s WHERE s.producto_id = p.id AND s.activo = 1 AND s.cantidad > 0 AND (s.estado = 'disponible' OR (s.estado = 'en_mantenimiento' AND NOT EXISTS (SELECT 1 FROM asignaciones_proyecto ap WHERE ap.stock_id = s.id AND ap.estado IN ('pendiente', 'en_uso'))))), 0) as stock_total,
+            COALESCE((SELECT AVG(s.metraje) FROM stock s WHERE s.producto_id = p.id AND s.activo = 1 AND s.cantidad > 0 AND (s.estado = 'disponible' OR (s.estado = 'en_mantenimiento' AND NOT EXISTS (SELECT 1 FROM asignaciones_proyecto ap WHERE ap.stock_id = s.id AND ap.estado IN ('pendiente', 'en_uso'))))), p.metraje, 0) as metraje_unitario,
+            COALESCE((SELECT s.ubicacion_id FROM stock s WHERE s.producto_id = p.id AND s.activo = 1 AND s.cantidad > 0 AND (s.estado = 'disponible' OR (s.estado = 'en_mantenimiento' AND NOT EXISTS (SELECT 1 FROM asignaciones_proyecto ap WHERE ap.stock_id = s.id AND ap.estado IN ('pendiente', 'en_uso')))) ORDER BY s.id LIMIT 1), NULL) as ubicacion_id
         FROM productos p
         LEFT JOIN tipos_material tm ON p.tipo_material_id = tm.id
         LEFT JOIN marcas m ON p.marca_id = m.id
-        LEFT JOIN stock s ON p.id = s.producto_id
-        LEFT JOIN ubicaciones u ON s.ubicacion_id = u.id
+        LEFT JOIN proveedores pr ON p.proveedor_id = pr.id
         WHERE p.id = ?
-        GROUP BY p.id
     `, [id], (err, row) => {
         if (err) {
             res.status(500).json({ error: err.message });
@@ -56,66 +97,158 @@ export const getMaterialById = (req: Request, res: Response) => {
     });
 };
 
-// Obtener material por SKU
-export const getMaterialBySku = (req: Request, res: Response) => {
-    const { sku } = req.params;
-    db.get(`
-        SELECT 
-            p.*,
-            tm.nombre as tipo_nombre,
-            m.nombre as marca_nombre
-        FROM productos p
-        LEFT JOIN tipos_material tm ON p.tipo_material_id = tm.id
-        LEFT JOIN marcas m ON p.marca_id = m.id
-        WHERE p.sku = ?
-    `, [sku], (err, row) => {
-        if (err) {
-            res.status(500).json({ error: err.message });
-            return;
-        }
-        if (!row) {
-            res.status(404).json({ error: 'Material no encontrado' });
-            return;
-        }
-        res.json(row);
-    });
-};
-
-// Crear un nuevo material
+// Crear un nuevo material (producto maestro)
 export const createMaterial = (req: Request, res: Response) => {
     const {
-        sku, tipo_material_id, marca_id, nombre,
+        tipo_material_id, marca_id, proveedor_id, nombre,
         descripcion, modelo, unidad_medida_id,
-        requiere_serial, requiere_metraje,
-        stock_minimo, precio_compra, precio_venta
+        stock_minimo, precio_unitario, ubicacion_id,
+        area_id, cantidad_inicial, metraje_inicial,
+        estado, requiere_serial, requiere_metraje,
+        serial_number, numero_serie, metraje
     } = req.body;
 
-    if (!sku || !tipo_material_id || !nombre) {
-        res.status(400).json({ error: 'SKU, tipo y nombre son requeridos' });
+    const nombreFinal = (nombre || modelo || '').toString().trim();
+    const modeloFinal = (modelo || nombre || '').toString().trim();
+    const cantidadInicial = Number(cantidad_inicial || 0);
+    const metrajeFinal = parseInt(metraje || 0, 10) || 0;
+    const cantidadItems = Math.max(0, Math.round(cantidadInicial));
+
+    if (!tipo_material_id || !nombreFinal) {
+        res.status(400).json({ error: 'Tipo y modelo son requeridos' });
         return;
     }
 
-    db.run(`
-        INSERT INTO productos (
-            empresa_id, sku, tipo_material_id, marca_id,
-            nombre, descripcion, modelo, unidad_medida_id,
-            requiere_serial, requiere_metraje,
-            stock_minimo, precio_compra, precio_venta,
-            moneda
-        ) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'USD')
-    `, [
-        sku, tipo_material_id, marca_id,
-        nombre, descripcion, modelo, unidad_medida_id || 1,
-        requiere_serial || 0, requiere_metraje || 0,
-        stock_minimo || 0, precio_compra || 0, precio_venta || 0
-    ], function(err) {
-        if (err) {
-            res.status(500).json({ error: err.message });
-            return;
-        }
-        res.status(201).json({
-            id: this.lastID,
-            message: 'Material creado exitosamente'
+    const unidadValida = (() => {
+        const value = Number(unidad_medida_id);
+        return Number.isFinite(value) && value > 0 ? value : null;
+    })();
+
+    db.serialize(() => {
+        const resolveFk = (table: string, value: any) => {
+            const cleaned = Number(value);
+            if (!Number.isFinite(cleaned) || cleaned <= 0) return null;
+            return new Promise<number | null>((resolveFkValue) => {
+                db.get(`SELECT id FROM ${table} WHERE id = ? LIMIT 1`, [cleaned], (err, row: any) => {
+                    if (err) {
+                        resolveFkValue(null);
+                        return;
+                    }
+                    resolveFkValue(row ? Number(row.id) : null);
+                });
+            });
+        };
+
+        db.run('BEGIN TRANSACTION');
+
+        Promise.all([
+            resolveFk('tipos_material', tipo_material_id),
+            resolveFk('marcas', marca_id),
+            resolveFk('proveedores', proveedor_id),
+            resolveFk('ubicaciones', ubicacion_id),
+            resolveFk('areas', area_id)
+        ]).then(([tipoId, marcaId, proveedorId, ubicacionIdValid, areaIdValid]) => {
+            const safeTipoId = tipoId ?? null;
+            const safeMarcaId = marcaId ?? null;
+            const safeProveedorId = proveedorId ?? null;
+            const safeAreaId = areaIdValid ?? null;
+            const safeUbicacionId = ubicacionIdValid ?? 1;
+
+            db.run(`
+                INSERT INTO productos (
+                    empresa_id, tipo_material_id, marca_id, proveedor_id,
+                    nombre, descripcion, modelo, unidad_medida_id,
+                    requiere_serial, requiere_metraje,
+                    stock_minimo, precio_unitario, metraje,
+                    numero_serie, moneda, estado
+                ) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'USD', ?)
+            `, [
+                safeTipoId, safeMarcaId, safeProveedorId,
+                nombreFinal, descripcion, modeloFinal, unidadValida,
+                requiere_serial !== undefined ? (requiere_serial ? 1 : 0) : 0,
+                requiere_metraje !== undefined ? (requiere_metraje ? 1 : 0) : 0,
+                Number(stock_minimo || 0),
+                Number(precio_unitario || 0),
+                metrajeInicial,
+                (numero_serie || serial_number || null),
+                estado || 'activo'
+            ], function(err) {
+                if (err) {
+                    db.run('ROLLBACK');
+                    res.status(500).json({ error: err.message });
+                    return;
+                }
+
+                const productoId = this.lastID;
+
+                const crearStockMasivo = () => {
+                    if (cantidadItems <= 0 && metrajeInicial <= 0 && !(numero_serie || serial_number)) {
+                        db.run('COMMIT');
+                        res.status(201).json({
+                            id: productoId,
+                            message: 'Material creado exitosamente'
+                        });
+                        return;
+                    }
+
+                    const filas: Array<[number, number | null, number, number, number, number, string | null, string]> = [];
+                    const seriales = (numero_serie || serial_number || '').toString().split(/\r?\n|,/).map((item: string) => item.trim()).filter(Boolean);
+                    const unidadesAcrear = Math.max(1, cantidadItems || seriales.length || 1);
+
+                    for (let index = 0; index < unidadesAcrear; index += 1) {
+                        const serialAsignado = seriales[index] || null;
+                        const cantidadUnidad = 1;
+                        const metrajeUnidad = requiere_metraje ? metrajeFinal : 0;
+                        filas.push([
+                            productoId,
+                            safeAreaId,
+                            1,
+                            safeUbicacionId,
+                            cantidadUnidad,
+                            metrajeUnidad,
+                            serialAsignado,
+                            'disponible'
+                        ]);
+                    }
+
+                    const stmt = `
+                        INSERT INTO stock (producto_id, area_id, sucursal_id, ubicacion_id, cantidad, metraje, serial_number, estado)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    `;
+
+                    db.serialize(() => {
+                        let pending = filas.length;
+                        if (pending === 0) {
+                            db.run('COMMIT');
+                            res.status(201).json({ id: productoId, message: 'Material creado exitosamente con stock inicial' });
+                            return;
+                        }
+
+                        filas.forEach((fila) => {
+                            db.run(stmt, fila, (err) => {
+                                if (err) {
+                                    db.run('ROLLBACK');
+                                    res.status(500).json({ error: err.message });
+                                    return;
+                                }
+                                pending -= 1;
+                                if (pending === 0) {
+                                    db.run('COMMIT');
+                                    res.status(201).json({
+                                        id: productoId,
+                                        message: `Material creado exitosamente con ${unidadesAcrear} unidades registradas`
+                                    });
+                                }
+                            });
+                        });
+                    });
+                };
+
+                crearStockMasivo();
+            });
+        }).catch((err) => {
+            db.run('ROLLBACK');
+            res.status(500).json({ error: err.message || 'Error validando referencias del producto' });
         });
     });
 };
@@ -124,66 +257,167 @@ export const createMaterial = (req: Request, res: Response) => {
 export const updateMaterial = (req: Request, res: Response) => {
     const { id } = req.params;
     const {
-        sku, tipo_material_id, marca_id, nombre,
+        tipo_material_id, marca_id, proveedor_id, nombre,
         descripcion, modelo, unidad_medida_id,
         requiere_serial, requiere_metraje,
-        stock_minimo, precio_compra, precio_venta,
-        estado
+        stock_minimo, precio_unitario,
+        estado, serial_number, numero_serie, metraje,
+        cantidad_inicial, metraje_inicial,
+        area_id, ubicacion_id
     } = req.body;
 
-    db.run(`
-        UPDATE productos SET
-            sku = COALESCE(?, sku),
-            tipo_material_id = COALESCE(?, tipo_material_id),
-            marca_id = COALESCE(?, marca_id),
-            nombre = COALESCE(?, nombre),
-            descripcion = COALESCE(?, descripcion),
-            modelo = COALESCE(?, modelo),
-            unidad_medida_id = COALESCE(?, unidad_medida_id),
-            requiere_serial = COALESCE(?, requiere_serial),
-            requiere_metraje = COALESCE(?, requiere_metraje),
-            stock_minimo = COALESCE(?, stock_minimo),
-            precio_compra = COALESCE(?, precio_compra),
-            precio_venta = COALESCE(?, precio_venta),
-            estado = COALESCE(?, estado),
-            updated_at = CURRENT_TIMESTAMP
-        WHERE id = ?
-    `, [
-        sku, tipo_material_id, marca_id, nombre,
-        descripcion, modelo, unidad_medida_id,
-        requiere_serial, requiere_metraje,
-        stock_minimo, precio_compra, precio_venta,
-        estado, id
-    ], function(err) {
-        if (err) {
-            res.status(500).json({ error: err.message });
+    db.get('SELECT * FROM productos WHERE id = ?', [id], (fetchErr, currentMaterial: any) => {
+        if (fetchErr) {
+            res.status(500).json({ error: fetchErr.message });
             return;
         }
-        if (this.changes === 0) {
+        if (!currentMaterial) {
             res.status(404).json({ error: 'Material no encontrado' });
             return;
         }
-        res.json({ message: 'Material actualizado exitosamente' });
+
+        const nombreFinal = ((nombre ?? modelo ?? currentMaterial.nombre ?? currentMaterial.modelo) || '').toString().trim();
+        const modeloFinal = ((modelo ?? nombre ?? currentMaterial.modelo ?? currentMaterial.nombre) || '').toString().trim();
+        // Priorizar metraje (campo editado)
+        const metrajeFinal = (metraje !== undefined && metraje !== null && metraje !== '')
+            ? parseInt(metraje, 10)
+            : parseInt(currentMaterial.metraje ?? 0, 10);
+        const ubicacionId = Number(ubicacion_id ?? currentMaterial.ubicacion_id ?? 1);
+        const areaId = area_id !== undefined ? Number(area_id) : (currentMaterial.area_id ?? null);
+
+        db.run(`
+            UPDATE productos SET
+                tipo_material_id = COALESCE(?, tipo_material_id),
+                marca_id = COALESCE(?, marca_id),
+                proveedor_id = COALESCE(?, proveedor_id),
+                nombre = COALESCE(?, nombre),
+                descripcion = COALESCE(?, descripcion),
+                modelo = COALESCE(?, modelo),
+                unidad_medida_id = COALESCE(?, unidad_medida_id),
+                requiere_serial = COALESCE(?, requiere_serial),
+                requiere_metraje = COALESCE(?, requiere_metraje),
+                stock_minimo = COALESCE(?, stock_minimo),
+                precio_unitario = COALESCE(?, precio_unitario),
+                numero_serie = COALESCE(?, numero_serie),
+                metraje = ?,
+                estado = COALESCE(?, estado),
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        `, [
+            tipo_material_id ?? currentMaterial.tipo_material_id,
+            marca_id ?? currentMaterial.marca_id,
+            proveedor_id ?? currentMaterial.proveedor_id,
+            nombreFinal || currentMaterial.nombre,
+            descripcion ?? currentMaterial.descripcion,
+            modeloFinal || currentMaterial.modelo,
+            unidad_medida_id ?? currentMaterial.unidad_medida_id,
+            requiere_serial ?? currentMaterial.requiere_serial,
+            requiere_metraje ?? currentMaterial.requiere_metraje,
+            stock_minimo ?? currentMaterial.stock_minimo,
+            precio_unitario ?? currentMaterial.precio_unitario,
+            (numero_serie || serial_number || currentMaterial.numero_serie || null),
+            metrajeFinal,
+            estado ?? currentMaterial.estado,
+            id
+        ], function(err) {
+            if (err) {
+                res.status(500).json({ error: err.message });
+                return;
+            }
+            if (this.changes === 0) {
+                res.status(404).json({ error: 'Material no encontrado' });
+                return;
+            }
+
+            // Propagar metraje a todas las unidades de stock de este producto
+            db.run(
+                `UPDATE stock SET metraje = ?, updated_at = CURRENT_TIMESTAMP WHERE producto_id = ?`,
+                [metrajeFinal, id],
+                (stockErr) => {
+                    if (stockErr) {
+                        console.error('Error propagando metraje a stock:', stockErr.message);
+                    }
+                    res.json({ message: 'Material actualizado exitosamente' });
+                }
+            );
+        });
     });
 };
+
 
 // Eliminar un material
 export const deleteMaterial = (req: Request, res: Response) => {
     const { id } = req.params;
-    db.run('DELETE FROM productos WHERE id = ?', [id], function(err) {
-        if (err) {
-            res.status(500).json({ error: err.message });
+
+    // Verify product exists and check its status
+    db.get('SELECT estado FROM productos WHERE id = ?', [id], (productErr, productRow: any) => {
+        if (productErr) {
+            res.status(500).json({ error: productErr.message });
             return;
         }
-        if (this.changes === 0) {
+        if (!productRow) {
             res.status(404).json({ error: 'Material no encontrado' });
             return;
         }
-        res.json({ message: 'Material eliminado exitosamente' });
+        if (productRow.estado !== 'disponible') {
+            res.status(400).json({ error: 'Sólo se puede eliminar un material con estado disponible' });
+            return;
+        }
+        // Check for stock with serial numbers
+        db.get('SELECT COUNT(*) as serialCount FROM stock WHERE producto_id = ? AND serial_number IS NOT NULL', [id], (serialErr, serialRow: any) => {
+            if (serialErr) {
+                res.status(500).json({ error: serialErr.message });
+                return;
+            }
+            if (serialRow.serialCount > 0) {
+                res.status(400).json({ error: 'No se puede eliminar el material porque existen unidades con número de serie' });
+                return;
+            }
+            // Check for any physical stock
+            db.get('SELECT COUNT(*) as total FROM stock WHERE producto_id = ?', [id], (stockErr, stockRow: any) => {
+                if (stockErr) {
+                    res.status(500).json({ error: stockErr.message });
+                    return;
+                }
+                if (Number(stockRow?.total || 0) > 0) {
+                    // Soft delete: mark as inactivo
+                    db.run(`
+                        UPDATE productos
+                        SET estado = 'inactivo', updated_at = CURRENT_TIMESTAMP
+                        WHERE id = ?
+                    `, [id], function(updateErr) {
+                        if (updateErr) {
+                            res.status(500).json({ error: updateErr.message });
+                            return;
+                        }
+                        res.status(409).json({
+                            error: 'No se puede eliminar este material porque tiene stock físico o unidades registradas. Se marcó como inactivo.'
+                        });
+                    });
+                    return;
+                }
+                // Hard delete when no stock at all
+                db.run('DELETE FROM productos WHERE id = ?', [id], function(err) {
+                    if (err) {
+                        res.status(500).json({ error: err.message });
+                        return;
+                    }
+                    if (this.changes === 0) {
+                        res.status(404).json({ error: 'Material no encontrado' });
+                        return;
+                    }
+                    res.json({ message: 'Material eliminado exitosamente' });
+                });
+            });
+        });
     });
 };
 
-// Obtener stock de un material
+// ============================================
+// GESTIÓN DE STOCK
+// ============================================
+
+// Ver stock de un material por ubicación
 export const getMaterialStock = (req: Request, res: Response) => {
     const { id } = req.params;
     db.all(`
@@ -191,11 +425,14 @@ export const getMaterialStock = (req: Request, res: Response) => {
             s.*,
             u.nombre as ubicacion_nombre,
             l.codigo as lote_codigo,
-            l.descripcion as lote_descripcion
+            l.descripcion as lote_descripcion,
+            ap.proyecto_id as proyecto_asignado_id
         FROM stock s
         LEFT JOIN ubicaciones u ON s.ubicacion_id = u.id
         LEFT JOIN lotes l ON s.lote_id = l.id
-        WHERE s.producto_id = ?
+        LEFT JOIN asignaciones_proyecto ap ON ap.stock_id = s.id AND ap.estado IN ('pendiente', 'en_uso')
+        WHERE s.producto_id = ? AND s.activo = 1 AND s.cantidad > 0
+        ORDER BY s.cantidad DESC
     `, [id], (err, rows) => {
         if (err) {
             res.status(500).json({ error: err.message });
@@ -204,3 +441,538 @@ export const getMaterialStock = (req: Request, res: Response) => {
         res.json(rows || []);
     });
 };
+
+// Ajustar stock manualmente
+export const bulkUpdateMaterials = (req: Request, res: Response) => {
+    const { ids, precio_unitario, metraje } = req.body;
+    if (!Array.isArray(ids) || ids.length === 0) {
+        res.status(400).json({ error: 'Se requiere una lista de IDs de materiales' });
+        return;
+    }
+    // Ensure only allowed fields are present
+    if (precio_unitario === undefined && metraje === undefined) {
+        res.status(400).json({ error: 'Debe proporcionar al menos precio_unitario o metraje para actualizar' });
+        return;
+    }
+    const fields: string[] = [];
+    const params: any[] = [];
+    if (precio_unitario !== undefined) {
+        fields.push('precio_unitario = ?');
+        params.push(Number(precio_unitario) || 0);
+    }
+    if (metraje !== undefined) {
+        fields.push('metraje = ?');
+        params.push(Number(metraje) || 0);
+    }
+    const placeholders = ids.map(() => '?').join(',');
+    const sql = `UPDATE productos SET ${fields.join(', ')}, updated_at = CURRENT_TIMESTAMP WHERE id IN (${placeholders})`;
+    params.push(...ids);
+    db.run(sql, params, function(err) {
+        if (err) {
+            res.status(500).json({ error: err.message });
+            return;
+        }
+        // After updating productos, propagate metraje to stock if provided
+    if (metraje !== undefined) {
+        const stockSql = `UPDATE stock SET metraje = ? WHERE producto_id IN (${placeholders})`;
+        const stockParams = [Number(metraje) || 0, ...ids];
+        db.run(stockSql, stockParams, function(stockErr) {
+            if (stockErr) {
+                // Log error but do not fail the whole operation
+                console.error('Error actualizando metraje en stock:', stockErr.message);
+            }
+        });
+    }
+    res.json({ message: 'Materiales actualizados exitosamente', affectedRows: this.changes });
+    });
+};
+    const ubicacion = Number(ubicacion_id || 1);
+    const serialesSolicitados = parseSerialList(seriales || req.body.seriales_iniciales);
+    const cantidadSolicitada = serialesSolicitados.length > 0 ? serialesSolicitados.length : Number(cantidad ?? nueva_cantidad ?? 0);
+    const cantidadObjetivo = Number(nueva_cantidad ?? cantidad ?? 0);
+    const metrajeSolicitado = Number(metraje ?? req.body.metraje_inicial ?? 0);
+
+    if (operacion !== 'ajustar' && cantidadSolicitada <= 0 && metrajeSolicitado <= 0 && serialesSolicitados.length === 0) {
+        res.status(400).json({ error: 'Debe indicar al menos una cantidad, un metraje o un serial para mover stock' });
+        return;
+    }
+
+    db.serialize(() => {
+        db.run('BEGIN TRANSACTION');
+
+        db.all(`
+            SELECT id, serial_number, cantidad, metraje FROM stock WHERE producto_id = ? AND ubicacion_id = ? AND estado = 'disponible'
+        `, [id, ubicacion], (err, rows: any[]) => {
+            if (err) {
+                db.run('ROLLBACK');
+                res.status(500).json({ error: err.message });
+                return;
+            }
+
+            const cantidadAnterior = rows.reduce((sum, row) => sum + Number(row.cantidad || 0), 0);
+            const metrajeAnterior = rows.reduce((sum, row) => sum + Number(row.metraje || 0), 0);
+            const serialesActuales = new Set(rows.map((row) => row.serial_number).filter(Boolean));
+
+            const finalizeMovement = (stockId: number | null, cantidadAnterior: number, cantidadNueva: number, metrajeAnterior: number, metrajeNuevo: number, ubicacion: number, motivo?: string, serialesUtilizados: string[] = []) => {
+                const stockIdMovimiento = stockId ?? Number(rows[0]?.id || 0);
+                if (!stockIdMovimiento) {
+                    db.run('ROLLBACK');
+                    res.status(500).json({ error: 'No se pudo determinar la unidad de stock para registrar el movimiento' });
+                    return;
+                }
+
+                db.run(`
+                    INSERT INTO movimientos (
+                        empresa_id, sucursal_id, tipo_movimiento_id,
+                        fecha_movimiento, descripcion, estado
+                    ) VALUES (1, 1, 4, DATE('now'), ?, 'ejecutado')
+                `, [motivo || `Ajuste de inventario: ${cantidadAnterior} → ${cantidadNueva}`], function(err) {
+                    if (err) {
+                        db.run('ROLLBACK');
+                        res.status(500).json({ error: err.message });
+                        return;
+                    }
+
+                    const movimientoId = this.lastID;
+                    const serialTexto = serialesUtilizados.join(', ');
+
+                    db.run(`
+                        INSERT INTO movimientos_detalle (
+                            movimiento_id, stock_id, producto_id, cantidad,
+                            cantidad_anterior, cantidad_nueva,
+                            metraje, metraje_anterior, metraje_nuevo,
+                            ubicacion_destino_id, observaciones
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    `, [
+                        movimientoId, stockIdMovimiento, id, cantidadNueva - cantidadAnterior,
+                        cantidadAnterior, cantidadNueva,
+                        metrajeNuevo - metrajeAnterior, metrajeAnterior, metrajeNuevo,
+                        ubicacion, `${motivo || 'Ajuste manual de stock'} | seriales: ${serialTexto}`
+                    ], (err) => {
+                        if (err) {
+                            db.run('ROLLBACK');
+                            res.status(500).json({ error: err.message });
+                            return;
+                        }
+                        db.run('COMMIT');
+                        res.json({
+                            message: 'Stock ajustado exitosamente con lógica de inventario',
+                            anterior: cantidadAnterior,
+                            nuevo: cantidadNueva,
+                            diferencia: cantidadNueva - cantidadAnterior,
+                            metraje_anterior: metrajeAnterior,
+                            metraje_nuevo: metrajeNuevo,
+                            diferencia_metraje: metrajeNuevo - metrajeAnterior,
+                            seriales: serialesUtilizados
+                        });
+                    });
+                });
+            };
+
+            if (operacion === 'agregar') {
+                if (serialesSolicitados.length > 0) {
+                    const serialesDuplicados = serialesSolicitados.filter((serial) => serialesActuales.has(serial));
+                    if (serialesDuplicados.length > 0) {
+                        db.run('ROLLBACK');
+                        res.status(400).json({ error: `Los seriales ya existen en stock: ${serialesDuplicados.join(', ')}` });
+                        return;
+                    }
+
+                    const inserts = serialesSolicitados.map((serial) => new Promise<number>((resolve, reject) => {
+                        db.run(`
+                            INSERT INTO stock (producto_id, area_id, sucursal_id, ubicacion_id, cantidad, metraje, serial_number, estado)
+                            VALUES (?, NULL, 1, ?, 1, ?, ?, 'disponible')
+                        `, [id, ubicacion, metrajeSolicitado > 0 ? metrajeSolicitado : 0, serial], function(insertErr) {
+                            if (insertErr) {
+                                reject(insertErr);
+                                return;
+                            }
+                            resolve(this.lastID);
+                        });
+                    }));
+
+                    Promise.all(inserts)
+                        .then((stockIds) => finalizeMovement(stockIds[0], cantidadAnterior, cantidadAnterior + serialesSolicitados.length, metrajeAnterior, metrajeAnterior + metrajeSolicitado, ubicacion, motivo, serialesSolicitados))
+                        .catch((err) => {
+                            db.run('ROLLBACK');
+                            res.status(500).json({ error: err.message });
+                        });
+                } else {
+                    const cantidadAAgregar = Math.max(1, Number(cantidad ?? nueva_cantidad ?? 1));
+                    const metrajeAAgregar = Math.max(0, Number(metraje ?? 0));
+
+                    const accion = new Promise<number>((resolve, reject) => {
+                        db.run(`
+                            INSERT INTO stock (producto_id, area_id, sucursal_id, ubicacion_id, cantidad, metraje, serial_number, estado)
+                            VALUES (?, NULL, 1, ?, ?, ?, NULL, 'disponible')
+                        `, [id, ubicacion, cantidadAAgregar, metrajeAAgregar], function(insertErr) {
+                            if (insertErr) {
+                                reject(insertErr);
+                                return;
+                            }
+                            resolve(this.lastID);
+                        });
+                    });
+
+                    accion
+                        .then((stockId) => finalizeMovement(stockId, cantidadAnterior, cantidadAnterior + cantidadAAgregar, metrajeAnterior, metrajeAnterior + metrajeAAgregar, ubicacion, motivo, []))
+                        .catch((err) => {
+                            db.run('ROLLBACK');
+                            res.status(500).json({ error: err.message });
+                        });
+                }
+            } else if (operacion === 'retirar') {
+                if (serialesSolicitados.length > 0) {
+                    const serialesFaltantes = serialesSolicitados.filter((serial) => !serialesActuales.has(serial));
+                    if (serialesFaltantes.length > 0) {
+                        db.run('ROLLBACK');
+                        res.status(400).json({ error: `No se encontraron estos seriales en stock: ${serialesFaltantes.join(', ')}` });
+                        return;
+                    }
+
+                    const deletes = serialesSolicitados.map((serial) => new Promise<void>((resolve, reject) => {
+                        db.run(`
+                            DELETE FROM stock WHERE producto_id = ? AND ubicacion_id = ? AND serial_number = ?
+                        `, [id, ubicacion, serial], (err) => err ? reject(err) : resolve());
+                    }));
+
+                    Promise.all(deletes)
+                        .then(() => finalizeMovement(Number(rows[0]?.id || 0), cantidadAnterior, Math.max(0, cantidadAnterior - serialesSolicitados.length), metrajeAnterior, metrajeAnterior, ubicacion, motivo, serialesSolicitados))
+                        .catch((err) => {
+                            db.run('ROLLBACK');
+                            res.status(500).json({ error: err.message });
+                        });
+                } else {
+                    const cantidadARetirar = Math.max(0, Number(cantidad ?? nueva_cantidad ?? 0));
+                    const metrajeARetirar = Math.max(0, Number(metraje ?? 0));
+                    const filaSinSerial = rows.find((row) => !row.serial_number);
+
+                    if (!filaSinSerial) {
+                        db.run('ROLLBACK');
+                        res.status(400).json({ error: 'No hay stock sin serial para retirar' });
+                        return;
+                    }
+
+                    const accion = new Promise<void>((resolve, reject) => {
+                        db.run(`
+                            UPDATE stock
+                            SET cantidad = CASE WHEN cantidad > ? THEN cantidad - ? ELSE 0 END,
+                                metraje = CASE WHEN COALESCE(metraje, 0) > ? THEN COALESCE(metraje, 0) - ? ELSE 0 END,
+                                updated_at = CURRENT_TIMESTAMP
+                            WHERE id = ?
+                        `, [cantidadARetirar, cantidadARetirar, metrajeARetirar, metrajeARetirar, filaSinSerial.id], (err) => err ? reject(err) : resolve());
+                    });
+
+                    accion
+                        .then(() => finalizeMovement(Number(filaSinSerial.id), cantidadAnterior, Math.max(0, cantidadAnterior - cantidadARetirar), metrajeAnterior, Math.max(0, metrajeAnterior - metrajeARetirar), ubicacion, motivo, []))
+                        .catch((err) => {
+                            db.run('ROLLBACK');
+                            res.status(500).json({ error: err.message });
+                        });
+                }
+            } else {
+                const cantidadFinal = Math.max(0, Number(cantidadObjetivo || 0));
+                const metrajeObjetivo = Math.max(0, Number(metraje ?? req.body.metraje_inicial ?? 0));
+
+                if (serialesSolicitados.length > 0) {
+                    const serialesAUsar = serialesSolicitados.length > 0 ? serialesSolicitados : [];
+                    const deletes = rows.map((row) => new Promise<void>((resolve, reject) => {
+                        db.run(`DELETE FROM stock WHERE id = ?`, [row.id], (err) => err ? reject(err) : resolve());
+                    }));
+
+                    Promise.all(deletes)
+                        .then(() => {
+                            const inserts = serialesAUsar.map((serial) => new Promise<void>((resolve, reject) => {
+                                db.run(`
+                                    INSERT INTO stock (producto_id, area_id, sucursal_id, ubicacion_id, cantidad, metraje, serial_number, estado)
+                                    VALUES (?, NULL, 1, ?, 1, ?, ?, 'disponible')
+                                `, [id, ubicacion, metrajeObjetivo > 0 ? metrajeObjetivo : 0, serial], (err) => err ? reject(err) : resolve());
+                            }));
+                            return Promise.all(inserts);
+                        })
+                        .then(() => finalizeMovement(Number(rows[0]?.id || 0), cantidadAnterior, serialesSolicitados.length, metrajeAnterior, metrajeObjetivo, ubicacion, motivo, serialesSolicitados))
+                        .catch((err) => {
+                            db.run('ROLLBACK');
+                            res.status(500).json({ error: err.message });
+                        });
+                } else {
+                    // Validate that reducing quantity does not go below existing serial count
+                    const serialCount = serialesActuales.size;
+                    if (cantidadFinal < serialCount) {
+                        db.run('ROLLBACK');
+                        res.status(400).json({ error: `No se puede reducir la cantidad por debajo del número de unidades con número de serie (${serialCount})` });
+                        return;
+                    }
+                    // Existing code continues...
+                    const limpiarStock = new Promise<void>((resolve, reject) => {
+                        db.run(`DELETE FROM stock WHERE producto_id = ?`, [id], (err) => {
+                            if (err) return reject(err);
+                            resolve();
+                        });
+                    });
+
+                    limpiarStock
+                        .then(() => new Promise<void>((resolve, reject) => {
+                            db.run(`
+                                INSERT INTO stock (producto_id, ubicacion_id, cantidad, metraje, serial_number, estado)
+                                VALUES (?, ?, ?, ?, NULL, 'disponible')
+                            `, [id, ubicacion, cantidadFinal, metrajeObjetivo], (err) => err ? reject(err) : resolve());
+                        }))
+                        .then(() => finalizeMovement(Number(rows[0]?.id || 0), cantidadAnterior, cantidadFinal, metrajeAnterior, metrajeObjetivo, ubicacion, motivo, []))
+                        .catch((err) => {
+                            db.run('ROLLBACK');
+                            res.status(500).json({ error: err.message });
+                        });
+                }
+            }
+        });
+    });
+};
+
+export const actualizarUnidadStock = (req: Request, res: Response) => {
+    const { id, stockId } = req.params;
+const { serial_number, metraje, estado, ubicacion_id, area_id } = req.body;
+        const serialFinal = typeof serial_number === 'string' ? serial_number.trim() : serial_number;
+    const metrajeFinal = metraje === undefined || metraje === null ? null : Number(metraje);
+
+    if (!stockId) {
+        res.status(400).json({ error: 'Falta el identificador de la unidad' });
+        return;
+    }
+
+    db.get(`
+        SELECT id FROM stock WHERE id = ? AND producto_id = ?
+    `, [stockId, id], (err, row: any) => {
+        if (err) {
+            res.status(500).json({ error: err.message });
+            return;
+        }
+
+        if (!row) {
+            res.status(404).json({ error: 'Unidad no encontrada' });
+            return;
+        }
+
+        if (serialFinal) {
+            db.get(`
+                SELECT id FROM stock WHERE serial_number = ? AND id != ?
+            `, [serialFinal, stockId], (err2, duplicate: any) => {
+                if (err2) {
+                    res.status(500).json({ error: err2.message });
+                    return;
+                }
+                if (duplicate) {
+                    res.status(400).json({ error: 'Ese número de serie ya existe en otra unidad' });
+                    return;
+                }
+
+                updateUnit();
+            });
+        } else {
+            updateUnit();
+        }
+    });
+
+    const updateUnit = () => {
+        if (['reservado', 'instalado', 'en_transito'].includes(estado)) {
+            res.status(400).json({ error: 'Las unidades solo pueden quedar reservadas, instaladas o en tránsito desde su proyecto asignado.' });
+            return;
+        }
+
+        const persistUnit = () => db.run(`
+            UPDATE stock
+            SET serial_number = COALESCE(?, serial_number),
+                metraje = COALESCE(?, metraje),
+                estado = COALESCE(?, estado),
+                cantidad = CASE WHEN ? = 'dado_baja' THEN 0 ELSE cantidad END,
+                activo = CASE WHEN ? = 'dado_baja' THEN 0 ELSE activo END,
+                ubicacion_id = COALESCE(?, ubicacion_id),
+                area_id = COALESCE(?, area_id),
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = ? AND producto_id = ?
+        `, [
+            serialFinal || null,
+            metrajeFinal,
+            estado || null,
+            estado || null,
+            estado || null,
+            ubicacion_id === undefined ? null : Number(ubicacion_id || null),
+            area_id === undefined ? null : Number(area_id || null),
+            stockId,
+            id
+        ], function(err) {
+            if (err) {
+                res.status(500).json({ error: err.message });
+                return;
+            }
+
+            if (this.changes === 0) {
+                res.status(404).json({ error: 'No se pudo actualizar la unidad' });
+                return;
+            }
+
+            if (estado !== 'disponible') {
+                res.json({ message: 'Unidad actualizada correctamente' });
+                return;
+            }
+
+            res.json({ message: 'Unidad actualizada correctamente' });
+        });
+
+        if (!estado) {
+            persistUnit();
+            return;
+        }
+
+        db.get(`
+            SELECT ap.id
+            FROM asignaciones_proyecto ap
+            JOIN stock s ON s.id = ap.stock_id
+            WHERE ap.stock_id = ?
+              AND ap.producto_id = ?
+                            AND ap.estado IN ('pendiente', 'en_uso')
+            LIMIT 1
+        `, [stockId, id], (assignmentErr, assignment: any) => {
+            if (assignmentErr) {
+                res.status(500).json({ error: assignmentErr.message });
+                return;
+            }
+            if (assignment) {
+                res.status(409).json({ error: 'Esta unidad está vinculada a un proyecto. Cambia su estado desde la lista de materiales del proyecto.' });
+                return;
+            }
+            persistUnit();
+        });
+    };
+};
+
+export const deleteUnidadStock = (req: Request, res: Response) => {
+    const { id, stockId } = req.params;
+    const { cantidad, motivo } = req.body || {};
+
+    db.get(`
+        SELECT * FROM stock WHERE id = ? AND producto_id = ?
+    `, [stockId, id], (error, row: any) => {
+        if (error) {
+            res.status(500).json({ error: error.message });
+            return;
+        }
+
+        if (!row) {
+            res.status(404).json({ error: 'Unidad de stock no encontrada' });
+            return;
+        }
+
+        const cantidadActual = Number(row.cantidad || 1);
+        const metrajeActual = Number(row.metraje || 0);
+        const cantidadAEliminar = Number(cantidad ?? cantidadActual);
+        const cantidadFinal = Math.max(0, cantidadActual - (Number.isFinite(cantidadAEliminar) && cantidadAEliminar > 0 ? cantidadAEliminar : cantidadActual));
+
+        if (row.serial_number || cantidadActual <= 1 || cantidadAEliminar >= cantidadActual) {
+            db.run(`
+                UPDATE stock
+                SET cantidad = 0,
+                    estado = 'dado_baja',
+                    activo = 0,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = ? AND producto_id = ?
+            `, [stockId, id], function(deleteErr) {
+                if (deleteErr) {
+                    res.status(500).json({ error: deleteErr.message });
+                    return;
+                }
+
+                if (this.changes === 0) {
+                    res.status(404).json({ error: 'No se pudo eliminar la unidad de stock' });
+                    return;
+                }
+
+                res.json({
+                    message: 'Unidad dada de baja correctamente',
+                    eliminado: true
+                });
+            });
+            return;
+        }
+
+        db.run(`
+            UPDATE stock
+            SET cantidad = ?,
+                metraje = CASE WHEN ? > 0 THEN ? ELSE metraje END,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = ? AND producto_id = ?
+        `, [cantidadFinal, cantidadFinal, Math.max(0, metrajeActual), stockId, id], function(updateErr) {
+            if (updateErr) {
+                res.status(500).json({ error: updateErr.message });
+                return;
+            }
+
+            if (this.changes === 0) {
+                res.status(404).json({ error: 'No se pudo descontar la cantidad solicitada' });
+                return;
+            }
+
+            res.json({
+                message: 'Cantidad eliminada correctamente',
+                cantidad_eliminada: cantidadAEliminar,
+                cantidad_restante: cantidadFinal,
+                eliminado: false
+            });
+        });
+    });
+};
+
+// ============================================
+// IMÁGENES
+// ============================================
+
+export const uploadImage = (req: MulterRequest, res: Response) => {
+    const { id } = req.params;
+    const file = req.file;
+
+    if (!file) {
+        res.status(400).json({ error: 'No se ha subido ninguna imagen' });
+        return;
+    }
+
+    const imageUrl = `/uploads/${file.filename}`;
+
+    db.run(`
+        INSERT INTO imagenes_producto (producto_id, nombre_archivo, ruta, es_principal)
+        VALUES (?, ?, ?, ?)
+    `, [id, file.filename, imageUrl, 1], function(err) {
+        if (err) {
+            res.status(500).json({ error: err.message });
+            return;
+        }
+
+        db.run(`
+            UPDATE productos SET imagen_principal_url = ? WHERE id = ?
+        `, [imageUrl, id], (err) => {
+            if (err) {
+                res.status(500).json({ error: err.message });
+                return;
+            }
+            res.status(201).json({
+                message: 'Imagen subida exitosamente',
+                imageUrl: imageUrl,
+                id: this.lastID
+            });
+        });
+    });
+};
+
+export const getImages = (req: Request, res: Response) => {
+    const { id } = req.params;
+    db.all(`
+        SELECT * FROM imagenes_producto WHERE producto_id = ? ORDER BY es_principal DESC, orden ASC
+    `, [id], (err, rows) => {
+        if (err) {
+            res.status(500).json({ error: err.message });
+            return;
+        }
+        res.json(rows);
+    });
+};
+
+export default db;
