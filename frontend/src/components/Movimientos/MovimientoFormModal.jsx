@@ -1,3 +1,4 @@
+import toast from 'react-hot-toast';
 import React, { useState } from 'react';
 import api from '../../services/api';
 
@@ -41,7 +42,7 @@ const MovimientoFormModal = ({ isOpen, onClose, onSaved }) => {
       onClose();
     } catch (error) {
       console.error('Error registrando movimiento:', error);
-      alert('No se pudo registrar el movimiento');
+      toast.error('No se pudo registrar el movimiento');
     } finally {
       setSaving(false);
     }

@@ -1,3 +1,4 @@
+import toast from 'react-hot-toast';
 import React, { useEffect, useState } from 'react';
 import { CheckCircle2, RotateCcw, Truck, Trash2, Wrench } from 'lucide-react';
 import api from '../../services/api';
@@ -34,7 +35,7 @@ const ProyectoDetalleModal = ({ isOpen, onClose, proyecto }) => {
       await loadMateriales();
     } catch (error) {
       console.error(error);
-      alert(error?.response?.data?.error || 'No se pudo actualizar el estado del material');
+      toast.error(error?.response?.data?.error || 'No se pudo actualizar el estado del material');
     } finally {
       setBusyId(null);
     }

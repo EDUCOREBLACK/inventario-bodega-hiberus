@@ -1,3 +1,4 @@
+import toast from 'react-hot-toast';
 import React, { useEffect, useState } from 'react';
 import { Plus, Pencil, Trash2, Building2 } from 'lucide-react';
 import api from '../../services/api';
@@ -44,7 +45,7 @@ const SucursalesList = () => {
       await loadSucursales();
     } catch (error) {
       console.error(error);
-      alert('No se pudo guardar la sucursal');
+      toast.error('No se pudo guardar la sucursal');
     } finally {
       setSaving(false);
     }
@@ -68,7 +69,7 @@ const SucursalesList = () => {
       await loadSucursales();
     } catch (error) {
       console.error(error);
-      alert('No se pudo eliminar la sucursal');
+      toast.error('No se pudo eliminar la sucursal');
     }
   };
 

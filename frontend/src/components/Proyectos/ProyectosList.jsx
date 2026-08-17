@@ -1,3 +1,4 @@
+import toast from 'react-hot-toast';
 import React, { useState, useEffect } from 'react';
 import { FolderKanban, Plus, Eye, Pencil, Trash2 } from 'lucide-react';
 import api from '../../services/api';
@@ -48,7 +49,7 @@ const ProyectosList = () => {
       await fetchProyectos();
     } catch (error) {
       console.error(error);
-      alert(error?.response?.data?.error || 'No se pudo eliminar el proyecto');
+      toast.error(error?.response?.data?.error || 'No se pudo eliminar el proyecto');
     }
   };
 

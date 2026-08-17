@@ -1,3 +1,4 @@
+import toast from 'react-hot-toast';
 import React, { useEffect, useState } from 'react';
 import api from '../../services/api';
 
@@ -125,7 +126,7 @@ const ProyectoFormModal = ({ isOpen, onClose, proyecto, onSaved }) => {
       onClose();
     } catch (error) {
       console.error('Error guardando proyecto:', error);
-      alert('No se pudo guardar el proyecto');
+      toast.error('No se pudo guardar el proyecto');
     } finally {
       setSaving(false);
     }

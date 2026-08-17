@@ -1,3 +1,4 @@
+import toast from 'react-hot-toast';
 import React, { useEffect, useState } from 'react';
 import api from '../../services/api';
 
@@ -45,7 +46,7 @@ const ProyectoAsignarModal = ({ isOpen, onClose, proyecto, onSaved }) => {
 
     const serialList = seriales.split(/\r?\n|,/).map((item) => item.trim()).filter(Boolean);
     if (selectedMaterial?.requiere_serial && serialList.length === 0) {
-      alert('Este material requiere ingresar los números de serie para la asignación.');
+      toast.error('Este material requiere ingresar los números de serie para la asignación.');
       return;
     }
 
@@ -62,7 +63,7 @@ const ProyectoAsignarModal = ({ isOpen, onClose, proyecto, onSaved }) => {
       onClose();
     } catch (error) {
       console.error(error);
-      alert('No se pudo asignar el material al proyecto');
+      toast.error('No se pudo asignar el material al proyecto');
     } finally {
       setSaving(false);
     }

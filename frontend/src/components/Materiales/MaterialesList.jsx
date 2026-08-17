@@ -1,3 +1,4 @@
+import toast from 'react-hot-toast';
 import React, { useState, useEffect } from 'react';
 import { Plus, Pencil, Trash2, TrendingDown, Package, Boxes } from 'lucide-react';
 import api from '../../services/api';
@@ -116,7 +117,7 @@ const MaterialesList = () => {
       await fetchMateriales();
     } catch (error) {
       console.error('Error al eliminar material:', error);
-      alert('No se pudo eliminar el material');
+      toast.error('No se pudo eliminar el material');
     }
   };
 

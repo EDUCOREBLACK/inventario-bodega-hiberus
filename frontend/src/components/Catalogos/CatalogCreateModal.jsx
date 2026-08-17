@@ -1,3 +1,4 @@
+import toast from 'react-hot-toast';
 import React, { useEffect, useState } from 'react';
 import api from '../../services/api';
 
@@ -89,7 +90,7 @@ const CatalogCreateModal = ({ isOpen, type, onClose, onSaved }) => {
       onClose();
     } catch (error) {
       console.error(`Error creando ${type}:`, error);
-      alert(`No se pudo crear ${config.title.toLowerCase()}`);
+      toast.error(`No se pudo crear ${config.title.toLowerCase()}`);
     } finally {
       setSaving(false);
     }

@@ -1,3 +1,4 @@
+import toast from 'react-hot-toast';
 import React, { useState } from 'react';
 import api from '../../services/api';
 
@@ -31,7 +32,7 @@ const StockAdjustModal = ({ isOpen, onClose, material, onSaved }) => {
       onClose();
     } catch (error) {
       console.error('Error ajustando stock:', error);
-      alert('No se pudo ajustar el stock');
+      toast.error('No se pudo ajustar el stock');
     } finally {
       setSaving(false);
     }

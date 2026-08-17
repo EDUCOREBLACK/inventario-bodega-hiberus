@@ -1,3 +1,4 @@
+import toast from 'react-hot-toast';
 import React, { useEffect, useState } from 'react';
 import { Plus, Pencil, Trash2, Users } from 'lucide-react';
 import api from '../../services/api';
@@ -44,7 +45,7 @@ const ClientesList = () => {
       await loadClientes();
     } catch (error) {
       console.error(error);
-      alert('No se pudo guardar el cliente');
+      toast.error('No se pudo guardar el cliente');
     } finally {
       setSaving(false);
     }
@@ -69,7 +70,7 @@ const ClientesList = () => {
       await loadClientes();
     } catch (error) {
       console.error(error);
-      alert('No se pudo eliminar el cliente');
+      toast.error('No se pudo eliminar el cliente');
     }
   };
 

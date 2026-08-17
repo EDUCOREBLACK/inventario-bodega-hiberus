@@ -1,3 +1,4 @@
+import toast from 'react-hot-toast';
 import React, { useEffect, useState } from 'react';
 import { Pencil, Plus, Store, Trash2 } from 'lucide-react';
 import api from '../../services/api';
@@ -84,13 +85,13 @@ const CatalogosPanel = () => {
       await loadCatalogos();
     } catch (error) {
       console.error(error);
-      alert('No se pudo eliminar la marca');
+      toast.error('No se pudo eliminar la marca');
     }
   };
 
   const handleMarcaSave = async () => {
     if (!marcaForm.nombre.trim()) {
-      alert('El nombre de la marca es obligatorio');
+      toast.error('El nombre de la marca es obligatorio');
       return;
     }
     try {
@@ -104,7 +105,7 @@ const CatalogosPanel = () => {
       await loadCatalogos();
     } catch (error) {
       console.error(error);
-      alert('No se pudo guardar la marca');
+      toast.error('No se pudo guardar la marca');
     }
   };
 
@@ -135,13 +136,13 @@ const CatalogosPanel = () => {
       await loadCatalogos();
     } catch (error) {
       console.error(error);
-      alert('No se pudo eliminar el proveedor');
+      toast.error('No se pudo eliminar el proveedor');
     }
   };
 
   const handleProveedorSave = async () => {
     if (!proveedorForm.nombre.trim()) {
-      alert('El nombre del proveedor es obligatorio');
+      toast.error('El nombre del proveedor es obligatorio');
       return;
     }
     try {
@@ -163,7 +164,7 @@ const CatalogosPanel = () => {
       await loadCatalogos();
     } catch (error) {
       console.error(error);
-      alert('No se pudo guardar el proveedor');
+      toast.error('No se pudo guardar el proveedor');
     }
   };
 
@@ -190,13 +191,13 @@ const CatalogosPanel = () => {
       await loadCatalogos();
     } catch (error) {
       console.error(error);
-      alert('No se pudo eliminar el tipo de material');
+      toast.error('No se pudo eliminar el tipo de material');
     }
   };
 
   const handleTipoSave = async () => {
     if (!tipoForm.nombre.trim()) {
-      alert('El nombre del tipo es obligatorio');
+      toast.error('El nombre del tipo es obligatorio');
       return;
     }
 
@@ -215,7 +216,7 @@ const CatalogosPanel = () => {
       await loadCatalogos();
     } catch (error) {
       console.error(error);
-      alert('No se pudo guardar el tipo de material');
+      toast.error('No se pudo guardar el tipo de material');
     }
   };
 
@@ -226,7 +227,7 @@ const CatalogosPanel = () => {
 
   const handleAreaSave = async () => {
     if (!areaForm.nombre.trim()) {
-      alert('El nombre del área es obligatorio');
+      toast.error('El nombre del área es obligatorio');
       return;
     }
     try {
@@ -240,7 +241,7 @@ const CatalogosPanel = () => {
       await loadCatalogos();
     } catch (error) {
       console.error(error);
-      alert('No se pudo guardar el área');
+      toast.error('No se pudo guardar el área');
     }
   };
 
@@ -251,7 +252,7 @@ const CatalogosPanel = () => {
       await loadCatalogos();
     } catch (error) {
       console.error(error);
-      alert('No se puede eliminar el área porque tiene unidades asociadas');
+      toast.error('No se puede eliminar el área porque tiene unidades asociadas');
     }
   };
 

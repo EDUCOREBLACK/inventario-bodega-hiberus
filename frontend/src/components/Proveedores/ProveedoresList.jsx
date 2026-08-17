@@ -1,3 +1,4 @@
+import toast from 'react-hot-toast';
 import React, { useEffect, useState } from 'react';
 import { Plus, Pencil, Trash2, Store } from 'lucide-react';
 import api from '../../services/api';
@@ -44,7 +45,7 @@ const ProveedoresList = () => {
       await loadProveedores();
     } catch (error) {
       console.error(error);
-      alert('No se pudo guardar el proveedor');
+      toast.error('No se pudo guardar el proveedor');
     } finally {
       setSaving(false);
     }
@@ -73,7 +74,7 @@ const ProveedoresList = () => {
       await loadProveedores();
     } catch (error) {
       console.error(error);
-      alert('No se pudo eliminar el proveedor');
+      toast.error('No se pudo eliminar el proveedor');
     }
   };
 

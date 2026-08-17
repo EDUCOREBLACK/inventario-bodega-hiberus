@@ -1,3 +1,4 @@
+import toast from 'react-hot-toast';
 import React, { useEffect, useState } from 'react';
 import api from '../../services/api';
 import { Plus, UserCog, ShieldCheck, Pencil, Trash2 } from 'lucide-react';
@@ -52,7 +53,7 @@ const UsuariosList = () => {
       await fetchUsuarios();
     } catch (error) {
       console.error(error);
-      alert('No se pudo guardar el usuario');
+      toast.error('No se pudo guardar el usuario');
     } finally {
       setSaving(false);
     }
@@ -79,7 +80,7 @@ const UsuariosList = () => {
       await fetchUsuarios();
     } catch (error) {
       console.error(error);
-      alert('No se pudo eliminar el usuario');
+      toast.error('No se pudo eliminar el usuario');
     }
   };
 

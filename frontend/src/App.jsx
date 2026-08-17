@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
+import { Toaster } from 'react-hot-toast';
 import Layout from './components/Layout/Layout';
 import Dashboard from './components/Dashboard/Dashboard';
 import MaterialesList from './components/Materiales/MaterialesList';
@@ -17,7 +18,9 @@ function App() {
   const [user, setUser] = useState(() => JSON.parse(localStorage.getItem('usuario') || 'null'));
 
   return (
-    <Routes>
+    <>
+      <Toaster position="top-right" />
+      <Routes>
       <Route path="/login" element={user ? <Navigate to="/" replace /> : <Login onLogin={setUser} />} />
       <Route path="/" element={
         <ProtectedRoute>
@@ -83,6 +86,7 @@ function App() {
         </ProtectedRoute>
       } />
     </Routes>
+    </>
   );
 }
 

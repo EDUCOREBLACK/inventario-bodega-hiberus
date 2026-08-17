@@ -1,3 +1,4 @@
+import toast from 'react-hot-toast';
 import React, { useEffect, useState } from 'react';
 import api from '../../services/api';
 
@@ -178,7 +179,7 @@ const MaterialFormModal = ({ isOpen, onClose, material, onSaved }) => {
       onClose();
     } catch (error) {
       console.error('Error guardando material:', error);
-      alert('No se pudo guardar el material');
+      toast.error('No se pudo guardar el material');
     } finally {
       setSaving(false);
     }

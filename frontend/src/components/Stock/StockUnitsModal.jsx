@@ -1,3 +1,4 @@
+import toast from 'react-hot-toast';
 import React, { useEffect, useState } from 'react';
 import api from '../../services/api';
 
@@ -57,7 +58,7 @@ const StockUnitsModal = ({ isOpen, onClose, material, onUnitsChanged }) => {
     const serialList = material?.requiere_serial ? [singleSerial.trim()].filter(Boolean) : [];
 
     if (material?.requiere_serial && serialList.length === 0) {
-      alert('Debes ingresar el número de serie de la unidad');
+      toast.error('Debes ingresar el número de serie de la unidad');
       return;
     }
 
@@ -77,7 +78,7 @@ const StockUnitsModal = ({ isOpen, onClose, material, onUnitsChanged }) => {
       await onUnitsChanged?.(material.id, updatedUnits);
     } catch (error) {
       console.error(error);
-      alert(error?.response?.data?.error || 'No se pudo agregar la unidad');
+      toast.error(error?.response?.data?.error || 'No se pudo agregar la unidad');
     } finally {
       setSaving(false);
     }
@@ -85,7 +86,7 @@ const StockUnitsModal = ({ isOpen, onClose, material, onUnitsChanged }) => {
 
   const handleAssignToProject = async (unit, proyectoId) => {
     if (!proyectoId) {
-      alert('Selecciona un proyecto antes de asignar');
+      toast.error('Selecciona un proyecto antes de asignar');
       return;
     }
 
@@ -99,13 +100,13 @@ const StockUnitsModal = ({ isOpen, onClose, material, onUnitsChanged }) => {
         seriales: unit.serial_number ? [unit.serial_number] : undefined,
         observaciones: 'Asignación desde la edición de una unidad'
       });
-      alert('Unidad asignada al proyecto correctamente');
+      toast.success('Unidad asignada al proyecto correctamente');
       cancelEdit();
       await loadUnits();
       await onUnitsChanged?.();
     } catch (error) {
       console.error(error);
-      alert(error?.response?.data?.error || 'No se pudo asignar la unidad al proyecto');
+      toast.error(error?.response?.data?.error || 'No se pudo asignar la unidad al proyecto');
     } finally {
       setSaving(false);
     }
@@ -144,7 +145,7 @@ const StockUnitsModal = ({ isOpen, onClose, material, onUnitsChanged }) => {
       await onUnitsChanged?.(material.id, updatedUnits);
     } catch (error) {
       console.error(error);
-      alert('No se pudo actualizar la unidad');
+      toast.error('No se pudo actualizar la unidad');
     } finally {
       setSaving(false);
     }
@@ -170,7 +171,7 @@ const StockUnitsModal = ({ isOpen, onClose, material, onUnitsChanged }) => {
       await onUnitsChanged?.(material.id, updatedUnits);
     } catch (error) {
       console.error(error);
-      alert(error?.response?.data?.error || 'No se pudo eliminar la unidad');
+      toast.error(error?.response?.data?.error || 'No se pudo eliminar la unidad');
     } finally {
       setSaving(false);
     }

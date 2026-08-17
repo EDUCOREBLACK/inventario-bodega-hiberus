@@ -1,3 +1,4 @@
+import toast from 'react-hot-toast';
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../services/api';
@@ -23,7 +24,7 @@ const Login = ({ onLogin }) => {
       navigate('/');
     } catch (error) {
       const message = error?.response?.data?.error || 'Credenciales inválidas';
-      alert(message);
+      toast.error(message);
     } finally {
       setLoading(false);
     }

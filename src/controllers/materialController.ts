@@ -169,7 +169,7 @@ export const createMaterial = (req: Request, res: Response) => {
                 requiere_metraje !== undefined ? (requiere_metraje ? 1 : 0) : 0,
                 Number(stock_minimo || 0),
                 Number(precio_unitario || 0),
-                metrajeInicial,
+                metrajeFinal,
                 (numero_serie || serial_number || null),
                 estado || 'activo'
             ], function(err) {
@@ -182,7 +182,7 @@ export const createMaterial = (req: Request, res: Response) => {
                 const productoId = this.lastID;
 
                 const crearStockMasivo = () => {
-                    if (cantidadItems <= 0 && metrajeInicial <= 0 && !(numero_serie || serial_number)) {
+                    if (cantidadItems <= 0 && metrajeFinal <= 0 && !(numero_serie || serial_number)) {
                         db.run('COMMIT');
                         res.status(201).json({
                             id: productoId,
