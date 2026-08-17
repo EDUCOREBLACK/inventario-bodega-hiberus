@@ -7,10 +7,12 @@ export const getProyectos = (req: Request, res: Response) => {
         SELECT 
             p.*,
             c.nombre as cliente_nombre,
-            COUNT(ap.id) as total_asignaciones
+            COUNT(ap.id) as total_asignaciones,
+            SUM(prod.precio_unitario * ap.cantidad_asignada) as costo_total
         FROM proyectos p
         LEFT JOIN clientes c ON p.cliente_id = c.id
         LEFT JOIN asignaciones_proyecto ap ON p.id = ap.proyecto_id
+        LEFT JOIN productos prod ON ap.producto_id = prod.id
         GROUP BY p.id
         ORDER BY p.created_at DESC
     `, (err, rows) => {

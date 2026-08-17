@@ -10,6 +10,7 @@ const ProyectosList = () => {
   const [loading, setLoading] = useState(true);
   const [selectedProyecto, setSelectedProyecto] = useState(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
+  const [isBulkAssignOpen, setIsBulkAssignOpen] = useState(false);
   const [isFormOpen, setIsFormOpen] = useState(false);
 
   const fetchProyectos = async () => {
@@ -141,6 +142,15 @@ const ProyectosList = () => {
         )}
       </div>
 
+      
+      {isBulkAssignOpen && (
+        <ProyectoBulkAsignarModal
+          isOpen={isBulkAssignOpen}
+          onClose={() => setIsBulkAssignOpen(false)}
+          proyecto={selectedProyecto}
+          onSaved={fetchProyectos}
+        />
+      )}
       <ProyectoDetalleModal
         isOpen={isDetailOpen}
         onClose={() => setIsDetailOpen(false)}
