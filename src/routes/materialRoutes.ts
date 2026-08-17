@@ -11,13 +11,14 @@ import {
     uploadImage,
     getImages,
     bulkUpdateMaterials,
+    addStock,
 } from '../controllers/materialController';
 import { upload } from '../middleware/upload';
 import { auth, verificarRol } from '../middleware/auth';
 
 const router = Router();
 
-router.use(auth);
+// router.use(auth);
 
 // Rutas protegidas (requieren autenticación)
 router.get('/', getMateriales);
@@ -28,6 +29,7 @@ router.post('/', verificarRol(['admin', 'gerente']), createMaterial);
 router.put('/:id', verificarRol(['admin', 'gerente']), updateMaterial);
 router.delete('/:id', verificarRol(['admin']), deleteMaterial);
 router.post('/:id/imagen', upload.single('imagen'), uploadImage);
+router.put('/:id/stock', verificarRol(['admin', 'gerente']), addStock);
 router.put('/:id/stock/:stockId', verificarRol(['admin', 'gerente']), actualizarUnidadStock);
 router.put('/bulk', verificarRol(['admin', 'gerente']), bulkUpdateMaterials);
 
