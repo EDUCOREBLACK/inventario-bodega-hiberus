@@ -18,7 +18,7 @@ import { auth, verificarRol } from '../middleware/auth';
 
 const router = Router();
 
-// router.use(auth);
+router.use(auth);
 
 // Rutas protegidas (requieren autenticación)
 router.get('/', getMateriales);
