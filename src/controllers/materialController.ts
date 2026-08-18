@@ -613,30 +613,7 @@ const { serial_number, metraje, estado, ubicacion_id, area_id } = req.body;
             res.json({ message: 'Unidad actualizada correctamente' });
         });
 
-        if (!estado) {
-            persistUnit();
-            return;
-        }
-
-        db.get(`
-            SELECT ap.id
-            FROM asignaciones_proyecto ap
-            JOIN stock s ON s.id = ap.stock_id
-            WHERE ap.stock_id = ?
-              AND ap.producto_id = ?
-                            AND ap.estado IN ('pendiente', 'en_uso')
-            LIMIT 1
-        `, [stockId, id], (assignmentErr, assignment: any) => {
-            if (assignmentErr) {
-                res.status(500).json({ error: assignmentErr.message });
-                return;
-            }
-            if (assignment) {
-                res.status(409).json({ error: 'Esta unidad está vinculada a un proyecto. Cambia su estado desde la lista de materiales del proyecto.' });
-                return;
-            }
-            persistUnit();
-        });
+        persistUnit();
     };
 };
 
