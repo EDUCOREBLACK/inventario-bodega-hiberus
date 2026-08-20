@@ -1,6 +1,6 @@
 import toast from 'react-hot-toast';
 import React, { useState, useEffect } from 'react';
-import { FolderKanban, Plus, Eye, Pencil, Trash2 } from 'lucide-react';
+import { FolderKanban, Plus, Eye, Pencil, Trash2, Users, Clock, AlertTriangle } from 'lucide-react';
 import api from '../../services/api';
 import ProyectoDetalleModal from './ProyectoDetalleModal';
 import ProyectoFormModal from './ProyectoFormModal';
@@ -58,7 +58,7 @@ const ProyectosList = () => {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-hiberus-blue"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
       </div>
     );
   }
@@ -68,7 +68,7 @@ const ProyectosList = () => {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Proyectos</h1>
-          <p className="text-gray-600">Gestión de proyectos</p>
+          <p className="text-gray-600">Gestión de proyectos y seguimiento de tareas</p>
         </div>
         <button onClick={handleCreate} className="btn-primary flex items-center">
           <Plus className="w-5 h-5 mr-2" />
@@ -84,7 +84,7 @@ const ProyectosList = () => {
           </div>
         ) : (
           proyectos.map((proyecto) => (
-            <div key={proyecto.id} className="card hover:shadow-lg transition-shadow">
+            <div key={proyecto.id} className="card hover:shadow-lg transition-shadow border-t-4 border-indigo-500">
               <div className="flex items-start justify-between">
                 <div className="flex-1">
                   <h3 className="text-lg font-semibold text-gray-900">
@@ -94,58 +94,95 @@ const ProyectosList = () => {
                     {proyecto.codigo}
                   </p>
                 </div>
-                <span className={`badge ${
-                  proyecto.estado === 'activo' ? 'badge-success' : 
-                  proyecto.estado === 'completado' ? 'badge-info' : 
-                  'badge-warning'
-                }`}>
-                  {proyecto.estado}
-                </span>
+                <div className="flex flex-col items-end gap-2">
+                  <span className={`badge ${
+                    proyecto.estado === 'activo' ? 'badge-success' : 
+                    proyecto.estado === 'completado' ? 'badge-info' : 
+                    'badge-warning'
+                  }`}>
+                    {proyecto.estado}
+                  </span>
+                  {proyecto.tareas_vencidas > 0 && (
+                    <span className="flex items-center text-xs font-medium text-red-600 bg-red-50 px-2 py-1 rounded-full">
+                      <AlertTriangle className="w-3 h-3 mr-1" />
+                      {proyecto.tareas_vencidas} vencidas
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Progress Bar */}
+              <div className="mt-4">
+                <div className="flex justify-between text-xs mb-1">
+                  <span className="font-medium text-gray-700">Avance ({proyecto.tareas_completadas}/{proyecto.total_tareas} tareas)</span>
+                  <span className="font-semibold text-indigo-600">{proyecto.porcentaje_avance}%</span>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-2">
+                  <div 
+                    className={`h-2 rounded-full ${proyecto.porcentaje_avance === 100 ? 'bg-green-500' : 'bg-indigo-600'}`} 
+                    style={{ width: `${proyecto.porcentaje_avance}%` }}
+                  ></div>
+                </div>
               </div>
               
-              <div className="mt-4 space-y-2">
-                <div className="flex items-center text-sm text-gray-600">
-                  <span className="font-medium mr-2">Tipo:</span>
-                  {proyecto.tipo === 'interno' ? '🔵 Interno' : '🟢 Externo'}
+              <div className="mt-4 grid grid-cols-2 gap-y-2 gap-x-4 text-sm">
+                <div className="flex items-center text-gray-600">
+                  <span className="font-medium mr-2">Fechas:</span>
+                  {proyecto.fecha_inicio || '-'}
                 </div>
-                <div className="flex items-center text-sm text-gray-600">
-                  <span className="font-medium mr-2">Materiales:</span>
+                <div className="flex items-center text-gray-600">
+                  <span className="font-medium mr-2">Mat. Asignados:</span>
                   {proyecto.total_asignaciones || 0}
                 </div>
-                <div className="flex items-center text-sm text-gray-600">
-                  <span className="font-medium mr-2">Costo total:</span>
-                  {new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(proyecto.costo_total || 0)}
+                <div className="flex items-center text-gray-600">
+                  <Users className="w-4 h-4 mr-1 text-gray-400" />
+                  <span className="font-medium mr-1">Personas:</span>
+                  {proyecto.cantidad_personas || 0}
                 </div>
-                <div className="flex items-center text-sm text-gray-600">
-                  <span className="font-medium mr-2">Fechas:</span>
-                  {proyecto.fecha_inicio} - {proyecto.fecha_fin}
+                <div className="flex items-center text-gray-600">
+                  <Clock className="w-4 h-4 mr-1 text-gray-400" />
+                  <span className="font-medium mr-1">Hrs Hmbre:</span>
+                  {proyecto.horas_hombre || 0}
                 </div>
+              </div>
+
+              <div className="mt-3 pt-3 border-t flex justify-between items-center text-sm">
+                <div className="text-gray-500">Costo Materiales:</div>
+                <div className="font-medium">{new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(proyecto.costo_materiales || 0)}</div>
+              </div>
+              <div className="flex justify-between items-center text-sm">
+                <div className="text-gray-500">Costo Laboral:</div>
+                <div className="font-medium">{new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(proyecto.costo_laboral || 0)}</div>
+              </div>
+              <div className="flex justify-between items-center text-sm mt-1">
+                <div className="font-semibold text-gray-900">Costo Total:</div>
+                <div className="font-bold text-indigo-700">{new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(proyecto.costo_total || 0)}</div>
               </div>
 
               <div className="mt-4 flex flex-wrap gap-2">
                 <button
-                  onClick={() => { setSelectedProyecto(proyecto); setIsBulkAssignOpen(true); }}
-                  className="btn-primary flex items-center bg-blue-600 text-white px-3 py-2 rounded-md hover:bg-blue-700 text-sm font-medium"
+                  onClick={() => handleEdit(proyecto)}
+                  className="btn-primary flex items-center bg-indigo-600 text-white px-3 py-2 rounded-md hover:bg-indigo-700 text-sm font-medium flex-1 justify-center"
                 >
-                  <Plus className="w-4 h-4 mr-1" /> Asignar materiales
+                  <Pencil className="w-4 h-4 mr-1" /> Editar / Tareas
+                </button>
+                <button
+                  onClick={() => { setSelectedProyecto(proyecto); setIsBulkAssignOpen(true); }}
+                  className="btn-secondary flex items-center justify-center flex-1" title="Asignar materiales"
+                >
+                  <Plus className="w-4 h-4 mr-1" /> Materiales
                 </button>
                 <button
                   onClick={() => { setSelectedProyecto(proyecto); setIsDetailOpen(true); }}
-                  className="btn-secondary flex items-center"
+                  className="btn-secondary flex items-center justify-center" title="Ver materiales"
                 >
-                  <Eye className="w-4 h-4 mr-2" /> Ver materiales
-                </button>
-                <button
-                  onClick={() => handleEdit(proyecto)}
-                  className="btn-secondary flex items-center"
-                >
-                  <Pencil className="w-4 h-4 mr-2" /> Editar
+                  <Eye className="w-4 h-4" />
                 </button>
                 <button
                   onClick={() => handleDelete(proyecto)}
-                  className="inline-flex items-center rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-100"
+                  className="inline-flex items-center justify-center rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-100" title="Eliminar"
                 >
-                  <Trash2 className="w-4 h-4 mr-2" /> Eliminar
+                  <Trash2 className="w-4 h-4" />
                 </button>
               </div>
             </div>
@@ -153,14 +190,14 @@ const ProyectosList = () => {
         )}
       </div>
 
-      
       {isBulkAssignOpen && (
-      <ProyectoBulkAsignarModal
-        isOpen={isBulkAssignOpen}
-        onClose={() => setIsBulkAssignOpen(false)}
-        proyecto={selectedProyecto}
-        onSaved={fetchProyectos}
-      />
+        <ProyectoBulkAsignarModal
+          isOpen={isBulkAssignOpen}
+          onClose={() => setIsBulkAssignOpen(false)}
+          proyecto={selectedProyecto}
+          onSaved={fetchProyectos}
+        />
+      )}
 
       <ProyectoDetalleModal
         isOpen={isDetailOpen}

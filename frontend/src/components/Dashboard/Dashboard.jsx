@@ -4,6 +4,7 @@ import api from '../../services/api';
 import ReportesPanel from './ReportesPanel';
 import AlertasPanel from './AlertasPanel';
 import ReportesAvanzados from './ReportesAvanzados';
+import GanttPanel from './GanttPanel';
 
 const Dashboard = () => {
   const [resumen, setResumen] = useState({
@@ -106,6 +107,7 @@ const Dashboard = () => {
         </div>
       </div>
 
+      <GanttPanel />
       <ReportesPanel />
       <AlertasPanel />
       <ReportesAvanzados />
